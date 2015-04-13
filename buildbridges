@@ -1,0 +1,47 @@
+#!/usr/bin/ruby
+
+require 'pp'
+require 'open3'
+
+containers = {} # mapping hostname to container id
+Open3.popen3("docker ps") do |stdin, stdout, stderr, wait_thr|
+  stdout.each_line do |line|
+    next if line.match(/^CONTAINER/)
+    containers[line.byteslice(128..-2).sub(/[^_]*_([^_]*)_.*/, '\1')] = line.byteslice(0, 12)
+  end
+end
+
+
+management_network = { device: "eth1", 
+                       bridge: "br1", 
+                       base: "192.168.1" }
+
+public_network = { device: "eth2", 
+                   bridge: "br2", 
+                   base: "172.16.1" }
+
+cluster_network = { device: "eth3", 
+                    bridge: "br3",
+                    base: "172.16.2" }
+
+suffix = { admin: '100',
+           mon1:  '1',
+           mon2:  '2',
+           mon3:  '3',
+           data1: '11',
+           data2: '12',
+           data3: '13',
+           data4: '14',
+           data5: '15',
+           data6: '16' }
+
+
+suffix.keys.each do |host|
+  `sudo /usr/local/bin/pipework #{management_network[:bridge]} -i #{management_network[:device]} #{containers[host.to_s]} #{management_network[:base]}.#{suffix[host]}/24`
+
+  `sudo /usr/local/bin/pipework #{public_network[:bridge]} -i #{public_network[:device]} #{containers[host.to_s]} #{public_network[:base]}.#{suffix[host]}/24`
+
+  `sudo /usr/local/bin/pipework #{cluster_network[:bridge]} -i #{cluster_network[:device]} #{containers[host.to_s]} #{cluster_network[:base]}.#{suffix[host]}/24`
+end
+
+
