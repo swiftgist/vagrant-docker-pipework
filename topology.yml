@@ -1,0 +1,35 @@
+---
+
+bridges:
+  management: 
+    device: eth1
+    base: 192.168.1
+  public:
+    device: eth2
+    base: 172.16.1
+  cluster:
+    device: eth3
+    base: 172.16.2
+servers:
+  admin: 
+    octet: 100
+  mon1:
+    octet: 1
+  mon2:
+    octet: 2
+  mon3:
+    octet: 3
+  data1:
+    octet: 11
+  data2:
+    octet: 12
+  data3:
+    octet: 13
+  data4:
+    octet: 14
+  data5:
+    octet: 15
+  data6:
+    octet: 16
+
+
