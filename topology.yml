@@ -13,23 +13,33 @@ bridges:
 servers:
   admin: 
     octet: 100
+    cluster: false
   mon1:
     octet: 1
+    cluster: false
   mon2:
     octet: 2
+    cluster: false
   mon3:
     octet: 3
+    cluster: false
   data1:
     octet: 11
+    cluster: true
   data2:
     octet: 12
+    cluster: true
   data3:
     octet: 13
+    cluster: true
   data4:
     octet: 14
+    cluster: true
   data5:
     octet: 15
+    cluster: true
   data6:
     octet: 16
+    cluster: true
 
 
