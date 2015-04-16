@@ -24,7 +24,7 @@ class Containers:
     """
     def __init__(self, config):
         """
-        The result of a +docker+ +ps+ command is parsed and saved into a hash.
+        The result of a 'docker ps' command is parsed and saved into a hash.
         """
         self.config = config
         self.containers = {}
@@ -46,7 +46,7 @@ class Containers:
         """
         The simple implementation of calling the pipework script directly for the
         creation of all bridges in all containers.  Each command is composed and
-        executed via +popen3+.  Success or a "File exists" result allows the 
+        executed via popen3.  Success or a "File exists" result allows the 
         method to continue.  Any other result will be exit the program.
         """
         for server in self.config['servers'].keys():
@@ -68,7 +68,7 @@ class Containers:
     def build(self):
         """
         The second implementation to call only the necessary commands to create 
-        the bridge interfaces.  Each container creates a +Bridges+ collection and
+        the bridge interfaces.  Each container creates a Bridges collection and
         then builds the interfaces.
         """
         for container in self.containers.keys():
