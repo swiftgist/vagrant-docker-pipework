@@ -8,6 +8,8 @@ While I could make a simple hardcoded wrapper, I wanted something slightly easie
 
 I wrote two implementations in Ruby and Python.  The first simply calls the _pipework_ script for every bridge on every container.  The second calls the individual commands directly for creating the bridge, host and guest interfaces.  
 
+The initial Vagrantfile and Dockerfile came from https://github.com/bubenkoff/vagrant-docker-example.
+
 ## Usage
 Each script is standalone and reads the *topology.yml* in the current directory.  The contents are the network bridges desired and the list of servers.  Here is an excerpt:
 
