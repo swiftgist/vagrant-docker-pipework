@@ -233,7 +233,14 @@ module Buildable
     def add
       cmd = "sudo ip link add name #{@local_ifname} mtu #{@mtu} type veth peer name #{@guest_ifname} mtu #{@mtu}"
       pp cmd
-      Buildable::popen(cmd)
+      Open3.popen3(cmd) do |stdin, stdout, stderr, wait_thr|
+        puts stdout.readlines
+        line = stderr.readlines.join
+        puts line
+        return(false) if line.match(/RTNETLINK answers: File exists/)
+        exit unless wait_thr.value.success? 
+      end
+      return(true)
     end
 
     # Prints command and assigns the bridge master device
