@@ -6,6 +6,22 @@ import re
 import os.path
 from subprocess import Popen, PIPE
 
+def popen(cmd):
+    """
+    Execute a command, print both stdout and stderr, and exit unless 
+    successful.
+ 
+        cmd - a string of the command
+
+    """
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    for line in proc.stdout:
+        print line
+    for line in proc.stderr:
+        print line
+    if (proc.returncode != 0):
+        exit
+
 class Containers:
     """
     Docker uses LXC (i.e. Linux Containers).  These containers represent each 
@@ -72,14 +88,15 @@ class Containers:
         then builds the interfaces.
         """
         for container in self.containers.keys():
-            b = Bridges(self.config['bridges'], self.containers[container])
+            #b = Bridges(self.config['bridges'], self.containers[container])
+            b = Bridges(self.config, container, self.containers[container])
             b.build()
 
 class Bridges:
     """
     The representation of all bridges in a container.
     """
-    def __init__(self, all_bridges, container_id):
+    def __init__(self, config, container, container_id):
         """
         A collection of all bridges with their interface names and base IPv4
         prefix.  Each bridge is created and saved in an array.  Virtual ethernet
@@ -91,9 +108,9 @@ class Bridges:
         """
         self.bridges = []
         self.veth = {}
-        for name in all_bridges.keys():
-            self.bridges.append(Bridge(name, all_bridges[name])) 
-            self.veth[name] = Veth(container_id, name, all_bridges[name])
+        for bridge_name in config['bridges'].keys():
+            self.bridges.append(Bridge(bridge_name, config['bridges'][bridge_name])) 
+            self.veth[bridge_name] = Veth(config['servers'][container]['octet'], container_id, bridge_name, config['bridges'][bridge_name])
     def build(self):
         """
         Cycle through each bridge and verify whether it exists.  If not, add the
@@ -105,11 +122,15 @@ class Bridges:
                 bridge.add
                 bridge.up
             self.veth[bridge.name].mtu = bridge.mtu()
+            self.veth[bridge.name].symlink()
             if (self.veth[bridge.name].add()):
                 self.veth[bridge.name].set()
                 self.veth[bridge.name].up()
                 self.veth[bridge.name].link()
-                self.veth[bridge.name].netns()
+                self.veth[bridge.name].netns_link()
+                self.veth[bridge.name].netns_up()
+                self.veth[bridge.name].netns_add()
+                self.veth[bridge.name].netns_arp()
 
 class Bridge:
     """
@@ -133,14 +154,14 @@ class Bridge:
         """
         cmd = [ "sudo", "ip", "link", "add", "dev", self.name, "type", "base" ]
         print " ".join(cmd)
-        self.popen(cmd)
+        popen(cmd)
     def up(self):
         """
         Print the command and enable the bridge interface
         """
         cmd = [ "sudo", "ip", "link", "set", self.name, "up" ]
         print " ".join(cmd)
-        self.popen(cmd)
+        popen(cmd)
     def mtu(self):
         """
         Print the command and return the mtu value for the bridge interface
@@ -156,39 +177,25 @@ class Bridge:
         Check the existence of the bridge pathname in /sys/class/net.
         """
         return(os.path.isfile("/sys/class/net/" + self.name))
-    def popen(self, cmd):
-        """
-        Execute a command, print both stdout and stderr, and exit unless 
-        successful.
-     
-            cmd - a string of the command
-
-        """
-        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
-        for line in proc.stdout:
-            print line
-        for line in proc.stderr:
-            print line
-        if (proc.returncode != 0):
-            exit
 
 class Veth:
     """
     Virtual ethernet pairs
     """
-    def __init__(self, container_id, name, settings):
+    def __init__(self, octet, container_id, bridge_name, settings):
         """
         Generate the local and guest interface names based on guest device and
         container process id.  Capture all parameters and initialize mtu to nil.
      
             container_id = 12 character identifier for a Docker container
-            name - The name of the bridge
+            bridge_name - The name of the bridge
             settings - The bridge settings
         """
         self.container_id = container_id
-        self.name = name
+        self.bridge_name = bridge_name
         self.docker_pid = self.dockerpid()
         self.container_ifname = settings['device']
+        self.address = settings['base'] + "." + str(octet)
         self.local_ifname = "v" + self.container_ifname + "pl" + self.docker_pid
         self.guest_ifname = "v" + self.container_ifname + "pg" + self.docker_pid
         self.mtu = None
@@ -213,6 +220,27 @@ class Veth:
         The mtu is necessary for adding veth peers and matches the bridge mtu
         """
         self.mtu = mtu
+    def symlink(self):
+        """
+        Prints command and recreate symlink from /proc to /var/run
+        """
+        symlink_path = "/var/run/netns/" + self.docker_pid
+        cmd = ["sudo", "rm", "-f", "name", symlink_path]
+        print " ".join(cmd)
+        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        for line in proc.stdout:
+            print line
+        for line in proc.stderr:
+            print line
+
+        cmd = ["sudo", "ln", "-s", "/proc/" + self.docker_pid + "/ns/net", symlink_path]
+        print " ".join(cmd)
+        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        for line in proc.stdout:
+            print line
+        for line in proc.stderr:
+            print line
+
     def add(self):
         """
         Prints command and add veth peers
@@ -229,46 +257,69 @@ class Veth:
                 return(False) # already exists
         if (proc.returncode != 0):
             exit
+        return(True)
     def set(self):
         """
         Prints command and assigns the bridge master device
         """
-        cmd = ["sudo", "ip", "link", "set", self.local_ifname, "master", self.name]
+        cmd = ["sudo", "ip", "link", "set", self.local_ifname, "master", self.bridge_name]
         print " ".join(cmd)
-        self.popen(cmd)
+        popen(cmd)
     def up(self):
         """
         Prints command and enables local interface
         """
         cmd = ["sudo", "ip", "link", "set", self.local_ifname, "up"]
         print " ".join(cmd)
-        self.popen(cmd)
+        popen(cmd)
     def link(self):
         """
         Prints command and assigns guest interface to container process
         """
         cmd = ["sudo", "ip", "link", "set", self.guest_ifname, "netns", self.docker_pid]
         print " ".join(cmd)
-        self.popen(cmd)
-    def netns(self):
+        popen(cmd)
+    def netns_link(self):
         """
         Prints command and sets the guest interface to the container interface 
         (i.e. bridge name on host) from within the network namespace of the guest.
         """
         cmd = ["sudo", "ip", "netns", "exec", self.docker_pid, "ip", "link", "set", self.guest_ifname, "name", self.container_ifname]
         print " ".join(cmd)
-        self.popen(cmd)
-    def popen(self, cmd):
+        popen(cmd)
+    def netns_add(self):
         """
-        Redundant
+        Prints command and assigns address to interface
         """
-        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
-        for line in proc.stdout:
-            print line
-        for line in proc.stderr:
-            print line
-        if (proc.returncode != 0):
-            exit
+        cmd = ["sudo", "ip", "netns", "exec", self.docker_pid, "ip", "addr", "add", self.address + "/24", "dev", self.container_ifname]
+        print " ".join(cmd)
+        popen(cmd)
+    def netns_up(self):
+        """
+        Prints command and enables interface on guest
+        """
+        cmd = ["sudo", "ip", "netns", "exec", self.docker_pid, "ip", "link", "set", self.container_ifname, "up"]
+        print " ".join(cmd)
+        popen(cmd)
+    def netns_arp(self):
+        """
+        Prints command and notifies bridge
+        """
+        cmd = ["sudo", "ip", "netns", "exec", self.docker_pid, "arping", "-c", "1", "-A", "-I", self.container_ifname, self.address]
+        print " ".join(cmd)
+        popen(cmd)
+
+    #def popen(self, cmd):
+    #    """
+    #    Redundant
+    #    """
+    #    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    #    for line in proc.stdout:
+    #        print line
+    #    for line in proc.stderr:
+    #        print line
+    #    if (proc.returncode != 0):
+    #        exit
 
 def main():
     """

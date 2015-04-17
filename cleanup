@@ -1,0 +1,7 @@
+#!/bin/sh
+
+for i in `ip link show | awk -F: '/veth.p/ {print $2}'`
+do
+  echo "removing $i"
+  sudo ip link delete $i type veth
+done
