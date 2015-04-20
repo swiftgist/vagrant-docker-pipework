@@ -219,6 +219,10 @@ module Buildable
 
     # Print commands and recreate symlink from /proc to /var/run
     def symlink
+      cmd = "sudo mkdir -p /var/run/netns"
+      pp cmd
+      Buildable::popen(cmd)
+
       symlink_path = "/var/run/netns/#{@docker_pid}"
       cmd = "sudo rm -f #{symlink_path}"
       pp cmd

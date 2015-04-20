@@ -224,6 +224,14 @@ class Veth:
         """
         Prints command and recreate symlink from /proc to /var/run
         """
+        cmd = ["sudo", "mkdir", "-p", "/var/run/netns"]
+        print " ".join(cmd)
+        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        for line in proc.stdout:
+            print line
+        for line in proc.stderr:
+            print line
+
         symlink_path = "/var/run/netns/" + self.docker_pid
         cmd = ["sudo", "rm", "-f", "name", symlink_path]
         print " ".join(cmd)
